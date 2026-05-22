@@ -419,11 +419,8 @@ def _state_7(engine):
                 f'<div class="beat-number">Script Segment</div>{seg}</div>',
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                f'<div class="beat-card">'
-                f'<div class="beat-number">Image Prompt</div>{beat.get("image_prompt", "")}</div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown('<div class="beat-number" style="color:#FF0000;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0.6rem 0 0.2rem;">Image Prompt — copy ↓</div>', unsafe_allow_html=True)
+            st.code(beat.get("image_prompt", ""), language=None)
             cols = st.columns(2)
             for i, (field, label) in enumerate([
                 ("camera_angle", "Camera Angle"),
@@ -445,6 +442,31 @@ def _state_7(engine):
 
 
 def _state_8(engine):
+    # If video prompts already generated, show review + continue
+    if st.session_state.include_video_prompts:
+        prompts = st.session_state.image_prompts
+        st.markdown(f"**{len(prompts)} video prompts generated.** Copy any prompt below.")
+        st.markdown("---")
+        for beat in prompts:
+            bn = beat.get("beat_number", "?")
+            seg = beat.get("segment", "")
+            with st.expander(f"Beat {bn} — {seg[:60]}{'…' if len(seg) > 60 else ''}", expanded=False):
+                st.markdown(
+                    f'<div class="beat-card"><div class="beat-number">Script Segment</div>{seg}</div>',
+                    unsafe_allow_html=True,
+                )
+                if beat.get("image_prompt"):
+                    st.markdown('<div class="beat-number" style="color:#FF0000;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0.6rem 0 0.2rem;">Image Prompt — copy ↓</div>', unsafe_allow_html=True)
+                    st.code(beat["image_prompt"], language=None)
+                if beat.get("video_prompt"):
+                    st.markdown('<div class="beat-number" style="color:#FF0000;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0.6rem 0 0.2rem;">Video Prompt — copy ↓</div>', unsafe_allow_html=True)
+                    st.code(beat["video_prompt"], language=None)
+        st.markdown("")
+        if st.button("Continue to Thumbnail Analysis →", key="s8_continue"):
+            st.session_state.yt_state = 9
+            st.rerun()
+        return
+
     st.markdown("**Would you like video motion prompts generated for each image prompt?**")
     col1, col2 = st.columns(2)
 
@@ -453,7 +475,6 @@ def _state_8(engine):
             enhanced = engine.generate_video_prompts(st.session_state.image_prompts)
             st.session_state.image_prompts = enhanced
             st.session_state.include_video_prompts = True
-        st.session_state.yt_state = 9
         st.rerun()
 
     if col2.button("No — Skip to Thumbnails", key="s8_no"):
@@ -521,11 +542,12 @@ def _state_10(engine):
                 f'<span class="thumb-number">Concept {cn}</span><br><br>'
                 f'<b>Visual Concept:</b> {concept.get("visual_concept", "")}<br><br>'
                 f'<b>Text Overlay:</b> {concept.get("text_overlay", "")}<br><br>'
-                f'<b>Emotion Trigger:</b> {concept.get("emotion_trigger", "")}<br><br>'
-                f'<b>Generation Prompt:</b><br><code>{concept.get("generation_prompt", "")}</code>'
+                f'<b>Emotion Trigger:</b> {concept.get("emotion_trigger", "")}'
                 f'</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown('<div class="beat-number" style="color:#FF0000;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0.4rem 0 0.2rem;">Generation Prompt — copy ↓</div>', unsafe_allow_html=True)
+            st.code(concept.get("generation_prompt", ""), language=None)
 
     st.markdown("")
     if st.button("Continue to Export →", key="s10_next"):
