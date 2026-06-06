@@ -4,3 +4,5 @@ stripe>=6.7.0,<8.0.0
 python-dotenv>=1.0.0
 pandas>=2.0.0
 python-docx>=0.8.11
+moviepy>=1.0.3
+Pillow>=10.0.0
