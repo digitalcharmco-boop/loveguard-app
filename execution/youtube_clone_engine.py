@@ -375,6 +375,35 @@ Output only the JSON array.""",
         result = self._call_api(messages, temperature=0.8)
         return self._parse_json(result)
 
+    # ── Content Calendar ─────────────────────────────────────────────────
+
+    def generate_content_calendar(self, style_dna: Dict, n_videos: int = 5) -> List[Dict]:
+        """
+        Generate n fully original video concepts in the channel's style.
+        Each concept includes title, hook, angle, topic, and thumbnail idea.
+        """
+        prompt = f"""You are a YouTube content strategist.
+
+Based on the channel's Style DNA below, generate {n_videos} original video concepts.
+These must be completely original ideas — not based on any specific existing video.
+They should feel native to this channel's voice, niche, and audience.
+
+Style DNA:
+{json.dumps(style_dna, indent=2)}
+
+Return a JSON array of exactly {n_videos} objects. Each object must have:
+- "title": the video title written in this channel's naming style
+- "topic": the core subject/theme in one phrase
+- "hook": the opening 2–3 sentences that would grab the viewer instantly, in this channel's voice
+- "angle": what makes this video unique vs generic content on the same topic
+- "thumbnail_concept": a one-sentence description of the thumbnail visual
+
+Return only the JSON array, no other text."""
+
+        messages = [{"role": "user", "content": prompt}]
+        result = self._call_api(messages, temperature=0.9, max_tokens=4096)
+        return self._parse_json(result)
+
     # ── State 11: Word Document Export ───────────────────────────────────
 
     def export_to_docx(self, session_data: Dict) -> bytes:
