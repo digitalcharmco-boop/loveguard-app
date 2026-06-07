@@ -194,6 +194,129 @@ class VideoProducer:
                 for p in parts:
                     f.write(p.read_bytes())
 
+    # ── Veo 3 video clip generation ────────────────────────────────────────
+
+    def generate_video_clips_veo(
+        self,
+        beats: List[Dict],
+        clip_duration: int = 8,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
+    ) -> List[Path]:
+        """Generate short video clips using Google Veo 3, one per beat."""
+        from google import genai
+
+        api_key = os.getenv("GOOGLE_API_KEY")
+        client = genai.Client(api_key=api_key)
+        clip_paths = []
+
+        for i, beat in enumerate(beats):
+            if on_progress:
+                on_progress(i, len(beats), f"Clip {i + 1}/{len(beats)} via Veo 3...")
+            prompt = beat.get("image_prompt", "cinematic dark atmospheric scene")[:2000]
+            path = self._generate_veo_clip(client, prompt, clip_duration, f"clip_{i:03d}.mp4")
+            clip_paths.append(path)
+
+        return clip_paths
+
+    def _generate_veo_clip(self, client, prompt: str, duration: int, filename: str) -> Path:
+        """Generate one Veo 3 video clip; fall back to styled image if it fails."""
+        import time
+        path = self.output_dir / filename
+
+        try:
+            operation = client.models.generate_videos(
+                model="veo-3.0-generate-preview",
+                prompt=prompt,
+                config={
+                    "aspect_ratio": "16:9",
+                    "duration_seconds": duration,
+                },
+            )
+            # Poll until done (max 5 minutes)
+            waited = 0
+            while not operation.done and waited < 300:
+                time.sleep(15)
+                waited += 15
+                operation = client.operations.get(operation)
+
+            if operation.done:
+                videos = operation.result().generated_videos
+                if videos:
+                    video_bytes = videos[0].video.video_bytes
+                    if video_bytes:
+                        path.write_bytes(video_bytes)
+                        return path
+        except Exception as exc:
+            logger.warning("Veo 3 clip failed for %s: %s", filename, exc)
+
+        # Fallback: styled image placeholder (will be used as ImageClip in assembly)
+        img_path = self._placeholder(filename.replace(".mp4", ".png"), prompt)
+        return img_path
+
+    def assemble_from_clips(
+        self,
+        clip_paths: List[Path],
+        audio_path: Path,
+        output_path: Optional[Path] = None,
+        on_progress: Optional[Callable[[str], None]] = None,
+    ) -> Path:
+        """Assemble Veo video clips (or image fallbacks) + audio into final MP4."""
+        from moviepy import VideoFileClip, ImageClip, concatenate_videoclips, AudioFileClip
+
+        if output_path is None:
+            output_path = self.output_dir / "final_video.mp4"
+
+        if on_progress:
+            on_progress("Loading audio...")
+        audio = AudioFileClip(str(audio_path))
+        total_dur = audio.duration
+        beat_dur = total_dur / max(len(clip_paths), 1)
+
+        TARGET_W, TARGET_H = 1920, 1080
+
+        if on_progress:
+            on_progress("Building timeline...")
+        clips = []
+        for cp in clip_paths:
+            if cp.suffix == ".mp4" and cp.exists() and cp.stat().st_size > 1000:
+                clip = VideoFileClip(str(cp))
+                # Fit to 1920×1080
+                scale = max(TARGET_W / clip.w, TARGET_H / clip.h)
+                clip = clip.resized(scale).cropped(
+                    x_center=clip.w / 2, y_center=clip.h / 2,
+                    width=TARGET_W, height=TARGET_H,
+                )
+            else:
+                # Image fallback
+                img_file = cp.with_suffix(".png")
+                clip = ImageClip(str(img_file)).with_duration(beat_dur)
+                scale = max(TARGET_W / clip.w, TARGET_H / clip.h)
+                clip = clip.resized(scale).cropped(
+                    x_center=clip.w / 2, y_center=clip.h / 2,
+                    width=TARGET_W, height=TARGET_H,
+                )
+            clips.append(clip)
+
+        if on_progress:
+            on_progress("Concatenating clips...")
+        video = concatenate_videoclips(clips)
+
+        # Trim to audio length if video is longer
+        if video.duration > total_dur:
+            video = video.subclipped(0, total_dur)
+        video = video.with_audio(audio).with_duration(total_dur)
+
+        if on_progress:
+            on_progress("Encoding MP4 (this takes a few minutes)...")
+        video.write_videofile(
+            str(output_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            logger=None,
+        )
+        return output_path
+
     # ── Thumbnail ──────────────────────────────────────────────────────────
 
     def generate_thumbnail_image(self, concept: Dict) -> Path:

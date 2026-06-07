@@ -144,40 +144,76 @@ def _run_pipeline(
         result["thumbnail_concepts"] = concepts
         st.write("✅ 5 thumbnail concepts generated")
 
-        img_ph = st.empty()
-        img_ph.write(f"**[6/9]** Generating {len(beats)} images via DALL-E 3...")
-
-        def on_img(i, total, msg):
-            remaining_min = (total - i) * 13 // 60
-            img_ph.write(f"**[6/9]** {msg} (~{remaining_min} min left)")
-
-        image_paths = producer.generate_images(beats, on_progress=on_img)
-        result["image_paths"] = [str(p) for p in image_paths]
-        img_ph.write(f"✅ {len(image_paths)} images generated")
-
-        st.write("**[7/9]** Generating thumbnail (HD)...")
-        thumb_path = producer.generate_thumbnail_image(concepts[0])
-        result["thumbnail_path"] = str(thumb_path)
-        st.write("✅ Thumbnail generated")
-
-        st.write("**[8/9]** Generating voiceover...")
-        audio_path = producer.generate_voiceover(script, voice=voice)
-        result["audio_path"] = str(audio_path)
-        st.write("✅ Voiceover generated")
-
-        asm_ph = st.empty()
-        asm_ph.write("**[9/9]** Assembling final video...")
-
+        use_veo = bool(os.getenv("GOOGLE_API_KEY"))
         from pathlib import Path
 
-        def on_asm(msg):
-            asm_ph.write(f"**[9/9]** {msg}")
+        if use_veo:
+            # ── Veo 3 path ────────────────────────────────────────────────
+            st.write("**[6/9]** Generating voiceover first (needed for timing)...")
+            audio_path = producer.generate_voiceover(script, voice=voice)
+            result["audio_path"] = str(audio_path)
+            st.write("✅ Voiceover generated")
 
-        video_path = producer.assemble_video(
-            image_paths=[Path(p) for p in result["image_paths"]],
-            audio_path=Path(result["audio_path"]),
-            on_progress=on_asm,
-        )
+            veo_ph = st.empty()
+            veo_ph.write(f"**[7/9]** Generating {len(beats)} video clips via Veo 3...")
+
+            def on_veo(i, total, msg):
+                veo_ph.write(f"**[7/9]** {msg} (~{(total - i) * 2} min left)")
+
+            clip_paths = producer.generate_video_clips_veo(beats, on_progress=on_veo)
+            result["image_paths"] = [str(p) for p in clip_paths]
+            veo_ph.write(f"✅ {len(clip_paths)} clips generated")
+
+            st.write("**[8/9]** Generating thumbnail...")
+            thumb_path = producer.generate_thumbnail_image(concepts[0])
+            result["thumbnail_path"] = str(thumb_path)
+            st.write("✅ Thumbnail generated")
+
+            asm_ph = st.empty()
+            asm_ph.write("**[9/9]** Assembling final video...")
+
+            def on_asm(msg):
+                asm_ph.write(f"**[9/9]** {msg}")
+
+            video_path = producer.assemble_from_clips(
+                clip_paths=[Path(p) for p in result["image_paths"]],
+                audio_path=Path(result["audio_path"]),
+                on_progress=on_asm,
+            )
+        else:
+            # ── DALL-E / image path ───────────────────────────────────────
+            img_ph = st.empty()
+            img_ph.write(f"**[6/9]** Generating {len(beats)} images...")
+
+            def on_img(i, total, msg):
+                img_ph.write(f"**[6/9]** {msg} (~{(total - i) * 13 // 60} min left)")
+
+            image_paths = producer.generate_images(beats, on_progress=on_img)
+            result["image_paths"] = [str(p) for p in image_paths]
+            img_ph.write(f"✅ {len(image_paths)} images generated")
+
+            st.write("**[7/9]** Generating thumbnail...")
+            thumb_path = producer.generate_thumbnail_image(concepts[0])
+            result["thumbnail_path"] = str(thumb_path)
+            st.write("✅ Thumbnail generated")
+
+            st.write("**[8/9]** Generating voiceover...")
+            audio_path = producer.generate_voiceover(script, voice=voice)
+            result["audio_path"] = str(audio_path)
+            st.write("✅ Voiceover generated")
+
+            asm_ph = st.empty()
+            asm_ph.write("**[9/9]** Assembling final video...")
+
+            def on_asm(msg):
+                asm_ph.write(f"**[9/9]** {msg}")
+
+            video_path = producer.assemble_video(
+                image_paths=[Path(p) for p in result["image_paths"]],
+                audio_path=Path(result["audio_path"]),
+                on_progress=on_asm,
+            )
+
         result["video_path"] = str(video_path)
         asm_ph.write("✅ Video assembled")
 
