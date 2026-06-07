@@ -16,6 +16,13 @@ import streamlit as st
 
 sys.path.append(os.path.dirname(__file__))
 
+st.set_page_config(
+    page_title="YouTube Content Calendar",
+    page_icon="📅",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
 try:
     for _k in ["OPENAI_API_KEY"]:
         if _k in st.secrets and not os.environ.get(_k):
@@ -25,13 +32,6 @@ except Exception:
 
 from dotenv import load_dotenv
 load_dotenv()
-
-st.set_page_config(
-    page_title="YouTube Content Calendar",
-    page_icon="📅",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
 
 st.markdown("""
 <style>
