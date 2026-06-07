@@ -221,7 +221,7 @@ def _render_results():
                                file_name="thumbnail.png", mime="image/png")
 
     st.markdown("### Script")
-    st.text_area("", value=r.get("script", ""), height=300, label_visibility="collapsed")
+    st.text_area("Script", value=r.get("script", ""), height=300, label_visibility="collapsed")
 
     if r.get("docx_bytes"):
         st.download_button(
