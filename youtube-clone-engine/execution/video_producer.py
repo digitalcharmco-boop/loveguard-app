@@ -80,34 +80,72 @@ class VideoProducer:
                         time.sleep(2)
             # If both attempts failed for this model, try next model
 
-        return self._placeholder(filename)
+        return self._placeholder(filename, prompt)
 
-    def _placeholder(self, filename: str) -> Path:
-        """Return a solid dark-grey image when generation fails."""
-        try:
-            from PIL import Image
-            img = Image.new("RGB", (1792, 1024), color=(30, 30, 30))
-        except ImportError:
-            # Write minimal 1×1 PNG bytes if Pillow unavailable
-            import struct, zlib
-            def _png1x1():
-                sig = b"\x89PNG\r\n\x1a\n"
-                ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
-                ihdr_chunk = b"IHDR" + ihdr
-                ihdr_crc = struct.pack(">I", zlib.crc32(ihdr_chunk) & 0xFFFFFFFF)
-                idat_data = zlib.compress(b"\x00\x1e\x1e\x1e")
-                idat = b"IDAT" + idat_data
-                idat_crc = struct.pack(">I", zlib.crc32(idat) & 0xFFFFFFFF)
-                iend = b"IEND"
-                iend_crc = struct.pack(">I", zlib.crc32(iend) & 0xFFFFFFFF)
-                def chunk(tag, data, crc): return struct.pack(">I", len(data)) + tag + data + crc
-                return sig + chunk(b"IHDR", ihdr, ihdr_crc) + chunk(b"IDAT", idat_data, idat_crc) + chunk(b"IEND", b"", iend_crc)
-            path = self.output_dir / filename
-            path.write_bytes(_png1x1())
-            return path
-
+    def _placeholder(self, filename: str, prompt: str = "") -> Path:
+        """Create a styled dark horror title card when image generation fails."""
         path = self.output_dir / filename
-        img.save(str(path))
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import textwrap
+
+            W, H = 1920, 1080
+            img = Image.new("RGB", (W, H), color=(8, 8, 10))
+            draw = ImageDraw.Draw(img)
+
+            # Dark vignette border
+            for i in range(120):
+                alpha = int(180 * (1 - i / 120))
+                draw.rectangle([i, i, W - i, H - i], outline=(0, 0, 0, alpha) if False else (0, 0, 0))
+
+            # Extract a short scene description from the prompt
+            scene = prompt.strip()
+            if len(scene) > 200:
+                # Take first meaningful sentence
+                for sep in [". ", ".\n", ", "]:
+                    if sep in scene[:200]:
+                        scene = scene[:scene[:200].index(sep)].strip()
+                        break
+                else:
+                    scene = scene[:150].strip()
+
+            # Try to load a font, fall back to default
+            font_large = font_small = None
+            try:
+                font_large = ImageFont.truetype("arial.ttf", 52)
+                font_small = ImageFont.truetype("arial.ttf", 28)
+            except Exception:
+                try:
+                    font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+                    font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+                except Exception:
+                    font_large = ImageFont.load_default()
+                    font_small = font_large
+
+            # Thin red top accent line
+            draw.rectangle([80, 80, W - 80, 83], fill=(180, 0, 0))
+
+            # Wrap and draw scene text
+            if scene:
+                lines = textwrap.wrap(scene, width=55)[:5]
+                y = H // 2 - (len(lines) * 65) // 2
+                for line in lines:
+                    bbox = draw.textbbox((0, 0), line, font=font_large)
+                    tw = bbox[2] - bbox[0]
+                    draw.text(((W - tw) // 2, y), line, font=font_large, fill=(220, 220, 220))
+                    y += 65
+
+            # Thin red bottom accent line
+            draw.rectangle([80, H - 83, W - 80, H - 80], fill=(180, 0, 0))
+
+            img.save(str(path), "PNG")
+        except Exception as e:
+            logger.warning("Styled placeholder failed (%s) — using solid black", e)
+            try:
+                from PIL import Image
+                Image.new("RGB", (1920, 1080), color=(8, 8, 10)).save(str(path), "PNG")
+            except Exception:
+                path.write_bytes(b"")
         return path
 
     # ── Voiceover ──────────────────────────────────────────────────────────
