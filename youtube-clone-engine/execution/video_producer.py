@@ -46,25 +46,39 @@ class VideoProducer:
         return image_paths
 
     def _fetch_dalle_image(self, prompt: str, filename: str) -> Path:
-        """Call DALL-E 3 with retry; fall back to placeholder on failure."""
-        for attempt in range(3):
-            try:
-                response = self.client.images.generate(
-                    model="dall-e-3",
-                    prompt=prompt or "cinematic wide shot, dramatic lighting",
-                    size="1792x1024",
-                    quality="standard",
-                    n=1,
-                )
-                url = response.data[0].url
-                data = requests.get(url, timeout=30).content
-                path = self.output_dir / filename
-                path.write_bytes(data)
-                return path
-            except Exception as exc:
-                logger.warning("DALL-E attempt %d failed: %s", attempt + 1, exc)
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+        """Generate image with retry across available models."""
+        # Try newest model first, fall back to older ones
+        models = [
+            ("gpt-image-1", "1536x1024", "medium"),
+            ("dall-e-3",    "1792x1024", "standard"),
+            ("dall-e-2",    "1024x1024", None),
+        ]
+        for model, size, quality in models:
+            for attempt in range(2):
+                try:
+                    kwargs = dict(
+                        model=model,
+                        prompt=(prompt or "cinematic wide shot, dramatic lighting")[:4000],
+                        size=size,
+                        n=1,
+                    )
+                    if quality:
+                        kwargs["quality"] = quality
+                    response = self.client.images.generate(**kwargs)
+                    img_data = response.data[0]
+                    if getattr(img_data, "b64_json", None):
+                        import base64
+                        data = base64.b64decode(img_data.b64_json)
+                    else:
+                        data = requests.get(img_data.url, timeout=30).content
+                    path = self.output_dir / filename
+                    path.write_bytes(data)
+                    return path
+                except Exception as exc:
+                    logger.warning("%s attempt %d failed: %s", model, attempt + 1, exc)
+                    if attempt == 0:
+                        time.sleep(2)
+            # If both attempts failed for this model, try next model
 
         return self._placeholder(filename)
 
@@ -145,22 +159,9 @@ class VideoProducer:
     # ── Thumbnail ──────────────────────────────────────────────────────────
 
     def generate_thumbnail_image(self, concept: Dict) -> Path:
-        """Generate the selected thumbnail concept as a DALL-E 3 HD image."""
+        """Generate thumbnail using best available image model."""
         prompt = concept.get("generation_prompt", "")[:4000]
-        for attempt in range(3):
-            try:
-                resp = self.client.images.generate(
-                    model="dall-e-3", prompt=prompt, size="1792x1024", quality="hd", n=1
-                )
-                data = requests.get(resp.data[0].url, timeout=30).content
-                path = self.output_dir / "thumbnail.png"
-                path.write_bytes(data)
-                return path
-            except Exception as exc:
-                logger.warning("Thumbnail attempt %d failed: %s", attempt + 1, exc)
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
-        return self._placeholder("thumbnail.png")
+        return self._fetch_dalle_image(prompt, "thumbnail.png")
 
     # ── Video assembly ─────────────────────────────────────────────────────
 
