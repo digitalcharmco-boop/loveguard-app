@@ -12,9 +12,10 @@ import os
 import sys
 import zipfile
 
-import streamlit as st
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
 
-sys.path.append(os.path.dirname(__file__))
+import streamlit as st
 
 st.set_page_config(
     page_title="YouTube Content Calendar",
@@ -31,7 +32,7 @@ except Exception:
     pass
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(os.path.join(_HERE, ".env"))
 
 st.markdown("""
 <style>
@@ -249,7 +250,7 @@ def _render_fetch_section():
         if f.get("frame_bytes"):
             cols = st.columns(min(5, len(f["frame_bytes"])))
             for i, fr in enumerate(f["frame_bytes"][:5]):
-                cols[i].image(fr, use_column_width=True)
+                cols[i].image(fr, use_container_width=True)
         if st.button("Clear & re-fetch", key="cal_clear"):
             for k in ["cal_fetched", "cal_dna", "cal_calendar"]:
                 st.session_state.pop(k, None)
@@ -398,7 +399,7 @@ def _render_downloads():
                     )
             tp = result.get("thumbnail_path")
             if tp and os.path.exists(tp):
-                st.image(tp, use_column_width=True)
+                st.image(tp, use_container_width=True)
                 with open(tp, "rb") as f:
                     col2.download_button(
                         "Download Thumbnail",

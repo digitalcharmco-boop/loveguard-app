@@ -122,7 +122,7 @@ class YouTubeFetcher:
             ],
             capture_output=True, text=True, timeout=30,
         )
-        url = result.stdout.strip().split("\n")[0]
+        url = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
         if not url:
             raise RuntimeError("Could not get video stream URL.")
         return url

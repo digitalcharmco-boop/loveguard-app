@@ -10,9 +10,12 @@ import mimetypes
 import os
 import sys
 
-import streamlit as st
+# Always resolve paths relative to this file — works regardless of where
+# PowerShell / the terminal is when the command is run.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
 
-sys.path.append(os.path.dirname(__file__))
+import streamlit as st
 
 st.set_page_config(
     page_title="YouTube Clone Engine — Auto",
@@ -29,7 +32,7 @@ except Exception:
     pass
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(os.path.join(_HERE, ".env"))
 
 st.markdown("""
 <style>
@@ -212,7 +215,7 @@ def _render_results():
     st.markdown("### Thumbnail")
     tp = r.get("thumbnail_path")
     if tp and os.path.exists(tp):
-        st.image(tp, use_column_width=True)
+        st.image(tp, use_container_width=True)
         with open(tp, "rb") as f:
             st.download_button("Download Thumbnail PNG", f.read(),
                                file_name="thumbnail.png", mime="image/png")
@@ -319,13 +322,13 @@ def _render_fetch_section():
             st.caption("Extracted frames:")
             cols = st.columns(min(5, len(f["frame_bytes"])))
             for i, frame in enumerate(f["frame_bytes"][:5]):
-                cols[i].image(frame, use_column_width=True)
+                cols[i].image(frame, use_container_width=True)
 
         if f.get("thumbnail_bytes"):
             st.caption("Channel thumbnails:")
             cols = st.columns(min(3, len(f["thumbnail_bytes"])))
             for i, thumb in enumerate(f["thumbnail_bytes"][:3]):
-                cols[i].image(thumb, use_column_width=True)
+                cols[i].image(thumb, use_container_width=True)
 
         for i, t in enumerate(f.get("transcripts", [])):
             with st.expander(f"Transcript {i+1} — {len(t.split())} words"):
