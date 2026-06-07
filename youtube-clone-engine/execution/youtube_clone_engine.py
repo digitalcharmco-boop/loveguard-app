@@ -72,9 +72,17 @@ class YouTubeCloneEngine:
     # ── State 4: Style DNA Extraction ────────────────────────────────────
 
     def extract_style_dna(self, transcripts: List[str], channel_url: str = "") -> Dict:
-        combined = "\n\n--- TRANSCRIPT SEPARATOR ---\n\n".join(
-            f"TRANSCRIPT {i + 1}:\n{t}" for i, t in enumerate(transcripts)
-        )
+        non_empty = [t for t in transcripts if t and t.strip()]
+        if non_empty:
+            combined = "\n\n--- TRANSCRIPT SEPARATOR ---\n\n".join(
+                f"TRANSCRIPT {i + 1}:\n{t}" for i, t in enumerate(non_empty)
+            )
+            content_source = f"Channel transcripts/descriptions:\n\n{combined}"
+        else:
+            content_source = (
+                f"No transcripts available. Infer style DNA from the channel URL alone: {channel_url}\n"
+                "Use your knowledge of this channel's known style, pacing, tone, and format."
+            )
         messages = [
             {
                 "role": "system",
@@ -85,10 +93,10 @@ class YouTubeCloneEngine:
             },
             {
                 "role": "user",
-                "content": f"""Analyze these YouTube channel transcripts.
+                "content": f"""Analyze this YouTube channel.
 Channel: {channel_url}
 
-{combined}
+{content_source}
 
 Extract Style DNA as JSON with EXACTLY these keys:
 {{

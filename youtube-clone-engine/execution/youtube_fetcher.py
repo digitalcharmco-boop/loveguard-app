@@ -62,10 +62,38 @@ class YouTubeFetcher:
     # ── Transcript ─────────────────────────────────────────────────────────
 
     def fetch_transcript(self, video_id: str) -> str:
-        """Fetch auto-generated or manual captions via youtube-transcript-api."""
-        from youtube_transcript_api import YouTubeTranscriptApi
-        entries = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join(e["text"] for e in entries)
+        """Fetch captions — tries multiple languages, falls back to yt-dlp description."""
+        # Try youtube-transcript-api first (any available language)
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+            try:
+                entries = YouTubeTranscriptApi.get_transcript(video_id)
+                return " ".join(e["text"] for e in entries)
+            except (TranscriptsDisabled, NoTranscriptFound):
+                # Try listing all available transcripts and taking the first one
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                transcript = next(iter(transcript_list))
+                entries = transcript.fetch()
+                return " ".join(e["text"] for e in entries)
+        except Exception:
+            pass
+
+        # Fallback: use yt-dlp to pull description + title as style signal
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--no-warnings", "--quiet",
+                 "--print", "%(title)s\n%(description)s",
+                 f"https://www.youtube.com/watch?v={video_id}"],
+                capture_output=True, text=True, timeout=30,
+            )
+            text = result.stdout.strip()
+            if text:
+                logger.info("Transcript unavailable — using video description as fallback.")
+                return text
+        except Exception:
+            pass
+
+        return ""
 
     # ── Thumbnail ──────────────────────────────────────────────────────────
 
