@@ -171,9 +171,8 @@ class VideoProducer:
         output_path: Optional[Path] = None,
         on_progress: Optional[Callable[[str], None]] = None,
     ) -> Path:
-        """Assemble images + audio into final 1920×1080 MP4 with crossfades."""
+        """Assemble images + audio into final 1920×1080 MP4."""
         from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
-        from moviepy.video.fx import CrossFadeIn
 
         if output_path is None:
             output_path = self.output_dir / "final_video.mp4"
@@ -182,7 +181,7 @@ class VideoProducer:
             on_progress("Loading audio...")
         audio = AudioFileClip(str(audio_path))
         total_dur = audio.duration
-        beat_dur = total_dur / len(image_paths)
+        beat_dur = total_dur / max(len(image_paths), 1)
 
         TARGET_W, TARGET_H = 1920, 1080
 
@@ -192,19 +191,17 @@ class VideoProducer:
         clips = []
         for img_path in image_paths:
             clip = ImageClip(str(img_path)).with_duration(beat_dur)
-            # Fit to 1920×1080
             scale = max(TARGET_W / clip.w, TARGET_H / clip.h)
             clip = clip.resized(scale)
             clip = clip.cropped(
                 x_center=clip.w / 2, y_center=clip.h / 2,
                 width=TARGET_W, height=TARGET_H,
             )
-            clip = clip.with_effects([CrossFadeIn(duration=0.5)])
             clips.append(clip)
 
         if on_progress:
             on_progress("Concatenating clips...")
-        video = concatenate_videoclips(clips, padding=-0.5)
+        video = concatenate_videoclips(clips)
         video = video.with_audio(audio).with_duration(total_dur)
 
         if on_progress:
