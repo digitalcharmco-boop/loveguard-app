@@ -144,7 +144,7 @@ def _run_pipeline(
         result["thumbnail_concepts"] = concepts
         st.write("✅ 5 thumbnail concepts generated")
 
-        use_veo = bool(os.getenv("GOOGLE_API_KEY"))
+        use_veo = bool(os.getenv("GEMINI_API_KEY"))
         from pathlib import Path
 
         if use_veo:

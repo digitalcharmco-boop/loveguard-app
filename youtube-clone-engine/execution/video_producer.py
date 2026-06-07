@@ -205,8 +205,11 @@ class VideoProducer:
         """Generate short video clips using Google Veo 3, one per beat."""
         from google import genai
 
-        api_key = os.getenv("GOOGLE_API_KEY")
-        client = genai.Client(api_key=api_key)
+        api_key = os.getenv("GEMINI_API_KEY")
+        client = genai.Client(
+            http_options={"api_version": "v1beta"},
+            api_key=api_key,
+        )
         clip_paths = []
 
         for i, beat in enumerate(beats):
@@ -219,39 +222,46 @@ class VideoProducer:
         return clip_paths
 
     def _generate_veo_clip(self, client, prompt: str, duration: int, filename: str) -> Path:
-        """Generate one Veo 3 video clip; fall back to styled image if it fails."""
+        """Generate one Veo 3 clip using correct API; fall back to styled image."""
         import time
+        from google.genai import types
+
         path = self.output_dir / filename
 
         try:
             operation = client.models.generate_videos(
-                model="veo-3.0-generate-preview",
-                prompt=prompt,
-                config={
-                    "aspect_ratio": "16:9",
-                    "duration_seconds": duration,
-                },
+                model="veo-3.1-lite-generate-preview",
+                source=types.VideoGenerationSource(prompt=prompt),
+                config=types.GenerateVideosConfig(
+                    person_generation="allow_adult",
+                    aspect_ratio="16:9",
+                    number_of_videos=1,
+                    duration_seconds=min(max(duration, 5), 8),
+                    resolution="720p",
+                ),
             )
+
             # Poll until done (max 5 minutes)
             waited = 0
             while not operation.done and waited < 300:
-                time.sleep(15)
-                waited += 15
+                logger.info("Veo 3 generating %s — waiting...", filename)
+                time.sleep(10)
+                waited += 10
                 operation = client.operations.get(operation)
 
             if operation.done:
-                videos = operation.result().generated_videos
-                if videos:
-                    video_bytes = videos[0].video.video_bytes
-                    if video_bytes:
-                        path.write_bytes(video_bytes)
+                result = operation.result
+                if result and result.generated_videos:
+                    video = result.generated_videos[0].video
+                    client.files.download(file=video)
+                    video.save(str(path))
+                    if path.exists() and path.stat().st_size > 1000:
                         return path
         except Exception as exc:
             logger.warning("Veo 3 clip failed for %s: %s", filename, exc)
 
-        # Fallback: styled image placeholder (will be used as ImageClip in assembly)
-        img_path = self._placeholder(filename.replace(".mp4", ".png"), prompt)
-        return img_path
+        # Fallback: styled dark title card
+        return self._placeholder(filename.replace(".mp4", ".png"), prompt)
 
     def assemble_from_clips(
         self,
