@@ -212,10 +212,17 @@ class VideoProducer:
         )
         clip_paths = []
 
+        FERN_PREFIX = (
+            "dark cinematic 3D animation, featureless mannequin figure with no face no eyes no mouth, "
+            "smooth blank head, faceless humanoid, matte dark surface, dramatic shadow lighting, "
+            "near-black color palette, ominous atmosphere, 3D rendered scene, "
+        )
+
         for i, beat in enumerate(beats):
             if on_progress:
                 on_progress(i, len(beats), f"Clip {i + 1}/{len(beats)} via Veo 3...")
-            prompt = beat.get("image_prompt", "cinematic dark atmospheric scene")[:2000]
+            raw_prompt = beat.get("image_prompt", "figure stands in dark empty corridor")
+            prompt = (FERN_PREFIX + raw_prompt)[:2000]
             path = self._generate_veo_clip(client, prompt, clip_duration, f"clip_{i:03d}.mp4")
             clip_paths.append(path)
 
@@ -233,7 +240,7 @@ class VideoProducer:
                 model="veo-3.1-lite-generate-preview",
                 source=types.VideoGenerationSource(prompt=prompt),
                 config=types.GenerateVideosConfig(
-                    person_generation="allow_adult",
+                    person_generation="dont_allow",
                     aspect_ratio="16:9",
                     number_of_videos=1,
                     duration_seconds=min(max(duration, 5), 8),

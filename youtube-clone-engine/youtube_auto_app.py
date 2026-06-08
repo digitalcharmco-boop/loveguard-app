@@ -431,13 +431,12 @@ def main():
             help="onyx=deep male · echo=male · alloy=neutral · fable=british · nova=female · shimmer=soft female",
         )
     with col2:
-        max_beats = st.slider("Max image beats", min_value=10, max_value=30, value=20)
+        max_beats = st.slider("Max image beats", min_value=20, max_value=60, value=40,
+                              help="Higher = more scene changes. ~4-6 sec per beat at 40 beats.")
 
-    img_cost = max_beats * 0.04 + 0.08
-    st.markdown(
-        f'<div class="cost-note">Estimated cost: ~${img_cost:.2f} DALL-E + ~$0.03 TTS</div>',
-        unsafe_allow_html=True,
-    )
+    use_veo_preview = bool(os.getenv("GEMINI_API_KEY"))
+    cost_note = f"~{max_beats} Veo 3 clips + ~$0.03 TTS" if use_veo_preview else f"~${max_beats * 0.04 + 0.08:.2f} images + ~$0.03 TTS"
+    st.markdown(f'<div class="cost-note">Estimated cost: {cost_note}</div>', unsafe_allow_html=True)
 
     st.markdown("")
     start = st.button("▶ Start Full Production", type="primary", use_container_width=True)

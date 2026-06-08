@@ -227,37 +227,47 @@ Output only JSON.""",
     # ── State 7: Image Prompt Generation ────────────────────────────────
 
     def generate_image_prompts(self, script: str, visual_profile: Dict) -> List[Dict]:
+        FERN_STYLE = (
+            "dark cinematic 3D animation, featureless mannequin figure with no face no eyes no mouth, "
+            "smooth blank head, faceless humanoid form, matte dark surface texture, "
+            "dramatic chiaroscuro lighting, deep shadow, near-black color palette with selective accent color, "
+            "cinematic wide or close-up shot, ominous atmosphere, rendered 3D scene, no text, no logos"
+        )
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "You are an elite visual director. Segment scripts into 3-5 second beats "
-                    "and generate detailed, standalone image prompts. Output pure JSON only."
+                    "You are an elite visual director specializing in dark 3D animation in the style of the YouTube channel Fern. "
+                    "Every scene uses featureless mannequin figures with no facial traits, deep shadow lighting, and a cinematic 3D render aesthetic. "
+                    "Segment scripts into 3-5 second beats and generate detailed standalone prompts. Output pure JSON only."
                 ),
             },
             {
                 "role": "user",
-                "content": f"""Segment this script into beats of 3-5 seconds (8-12 words each) and generate one image prompt per beat.
+                "content": f"""Segment this script into beats of 3-5 seconds (8-12 words each) and generate one video prompt per beat.
 
 SCRIPT:
 {script}
 
-VISUAL STYLE PROFILE (every prompt must match this):
+MANDATORY VISUAL STYLE — every single prompt must include ALL of these:
+{FERN_STYLE}
+
+CHANNEL VISUAL PROFILE (additional style context):
 {json.dumps(visual_profile, indent=2)}
 
 Output a JSON array. Each element must have EXACTLY these keys:
 {{
   "beat_number": 1,
   "segment": "exact script text for this beat",
-  "image_prompt": "complete self-contained scene description",
+  "image_prompt": "complete self-contained scene description — must include: featureless mannequin figure, dark 3D render, cinematic lighting, environment, camera framing, mood. NO realistic human faces ever.",
   "camera_angle": "specific angle and framing",
-  "lighting": "type, direction, quality",
+  "lighting": "type, direction, quality of shadow and light",
   "mood": "emotional atmosphere",
-  "action": "what is happening in the frame",
-  "visual_style": "how this matches the Visual Style Profile"
+  "action": "what the mannequin figure or environment is doing",
+  "visual_style": "dark 3D animation, faceless figure, cinematic render"
 }}
 
-CRITICAL RULE: Every prompt must be fully standalone — subject, environment, lighting, mood, camera framing, and visual style all included. No references to other prompts.
+CRITICAL: Every prompt must begin with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — no exceptions. No realistic humans. No faces. Ever.
 
 Output only the JSON array.""",
             },
