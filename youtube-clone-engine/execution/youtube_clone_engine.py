@@ -227,47 +227,55 @@ Output only JSON.""",
     # ── State 7: Image Prompt Generation ────────────────────────────────
 
     def generate_image_prompts(self, script: str, visual_profile: Dict) -> List[Dict]:
-        FERN_STYLE = (
-            "dark cinematic 3D animation, featureless mannequin figure with no face no eyes no mouth, "
-            "smooth blank head, faceless humanoid form, matte dark surface texture, "
-            "dramatic chiaroscuro lighting, deep shadow, near-black color palette with selective accent color, "
-            "cinematic wide or close-up shot, ominous atmosphere, rendered 3D scene, no text, no logos"
-        )
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "You are an elite visual director specializing in dark 3D animation in the style of the YouTube channel Fern. "
-                    "Every scene uses featureless mannequin figures with no facial traits, deep shadow lighting, and a cinematic 3D render aesthetic. "
-                    "Segment scripts into 3-5 second beats and generate detailed standalone prompts. Output pure JSON only."
+                    "You are a visual director for the YouTube channel Fern — a true crime 3D animation channel. "
+                    "Fern deliberately mixes THREE visual formats to create variety and keep viewers engaged:\n\n"
+                    "1. ANIMATION (≈60%): Dark 3D animated scenes. Featureless mannequin figures — no face, no eyes, "
+                    "no mouth, smooth blank heads. Cinematic chiaroscuro lighting, near-black palette, matte surfaces.\n\n"
+                    "2. NEWS_OVERLAY (≈25%): Dark broadcast-style graphic cards. Used when the script quotes someone, "
+                    "references news coverage, or makes a key revelatory statement. Shows the quote text on a dark card "
+                    "with news-ticker styling and red accent bars.\n\n"
+                    "3. INFOGRAPHIC (≈15%): Dark diagram/data slides. Used when the script mentions statistics, "
+                    "timelines, or relationships between people. White text and icons on near-black background with "
+                    "pink accent bars — like Fern's relationship maps and case timeline slides.\n\n"
+                    "Segment the script into beats of 3-5 seconds and assign the most fitting scene_type. "
+                    "Output pure JSON only."
                 ),
             },
             {
                 "role": "user",
-                "content": f"""Segment this script into beats of 3-5 seconds (8-12 words each) and generate one video prompt per beat.
+                "content": f"""Segment this script into beats (3-5 seconds, 8-12 words each) and assign a visual scene type to each.
 
 SCRIPT:
 {script}
 
-MANDATORY VISUAL STYLE — every single prompt must include ALL of these:
-{FERN_STYLE}
-
-CHANNEL VISUAL PROFILE (additional style context):
+CHANNEL VISUAL PROFILE:
 {json.dumps(visual_profile, indent=2)}
 
-Output a JSON array. Each element must have EXACTLY these keys:
+Output a JSON array. Each element must have ALL of these keys:
 {{
   "beat_number": 1,
   "segment": "exact script text for this beat",
-  "image_prompt": "complete self-contained scene description — must include: featureless mannequin figure, dark 3D render, cinematic lighting, environment, camera framing, mood. NO realistic human faces ever.",
-  "camera_angle": "specific angle and framing",
-  "lighting": "type, direction, quality of shadow and light",
+  "scene_type": "animation" | "news_overlay" | "infographic",
+  "image_prompt": "ANIMATION only: complete mannequin scene description starting with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — empty string for the other types",
+  "quote_text": "NEWS_OVERLAY only: the key quote or statement to display as on-screen text, max 30 words — empty string for other types",
+  "speaker_label": "NEWS_OVERLAY only: attribution label e.g. 'CNN Reporter, 2021' or 'Detective Morrison' — empty string for other types",
+  "display_text": "INFOGRAPHIC only: key fact, stat, or short list to render e.g. 'TIMELINE: Aug 27 — Last seen · Sep 11 — Reported missing · Sep 19 — Found' — empty string for other types",
+  "camera_angle": "specific angle (or 'flat card' for overlay/infographic)",
+  "lighting": "type and quality of light",
   "mood": "emotional atmosphere",
-  "action": "what the mannequin figure or environment is doing",
-  "visual_style": "dark 3D animation, faceless figure, cinematic render"
+  "action": "what is happening in the scene",
+  "visual_style": "dark 3D animation" | "dark news overlay" | "dark infographic"
 }}
 
-CRITICAL: Every prompt must begin with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — no exceptions. No realistic humans. No faces. Ever.
+Rules:
+- ANIMATION: image_prompt MUST start with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — mannequins only, no realistic faces ever
+- NEWS_OVERLAY: quote_text is 10-30 words; speaker_label is a plausible attribution
+- INFOGRAPHIC: display_text is a punchy fact, stat, or labeled list
+- Mix scene types naturally so animation dominates but overlays/infographics punctuate key moments
 
 Output only the JSON array.""",
             },

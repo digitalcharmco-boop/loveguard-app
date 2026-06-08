@@ -148,6 +148,126 @@ class VideoProducer:
                 path.write_bytes(b"")
         return path
 
+    # ── Pillow card helpers ────────────────────────────────────────────────
+
+    def _load_fonts(self, large: int, mid: int, small: int):
+        from PIL import ImageFont
+        candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "arial.ttf",
+        ]
+        def _try(size):
+            for p in candidates:
+                try:
+                    return ImageFont.truetype(p, size)
+                except Exception:
+                    pass
+            return ImageFont.load_default()
+        return _try(large), _try(mid), _try(small)
+
+    def _render_news_overlay(self, beat: dict, filename: str) -> Path:
+        """Dark news-broadcast graphic card with quote text and red accent bars."""
+        path = self.output_dir / filename
+        try:
+            from PIL import Image, ImageDraw
+            import textwrap
+
+            W, H = 1920, 1080
+            img = Image.new("RGB", (W, H), color=(6, 6, 8))
+            draw = ImageDraw.Draw(img)
+
+            font_q, font_m, font_s = self._load_fonts(50, 30, 22)
+
+            # Red accent bars (top + bottom — like news broadcast chyron)
+            draw.rectangle([0, 0, W, 8], fill=(190, 0, 0))
+            draw.rectangle([0, H - 8, W, H], fill=(190, 0, 0))
+
+            # "TRUE CRIME" label top-left
+            draw.text((90, 22), "TRUE CRIME", font=font_m, fill=(255, 255, 255))
+
+            # Dark semi-opaque quote box
+            box_y1 = H // 3 - 20
+            box_y2 = 2 * H // 3 + 60
+            draw.rectangle([60, box_y1, W - 60, box_y2], fill=(14, 14, 18))
+            draw.rectangle([60, box_y1, W - 60, box_y1 + 4], fill=(190, 0, 0))
+
+            # Quote text
+            quote = beat.get("quote_text", beat.get("segment", ""))[:280]
+            lines = textwrap.wrap(f'“{quote}”', width=58)[:5]
+            y = box_y1 + 28
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=font_q)
+                tw = bbox[2] - bbox[0]
+                draw.text(((W - tw) // 2, y), line, font=font_q, fill=(228, 228, 228))
+                y += 66
+
+            # Speaker attribution
+            speaker = beat.get("speaker_label", "")
+            if speaker:
+                bbox = draw.textbbox((0, 0), f"— {speaker}", font=font_m)
+                tw = bbox[2] - bbox[0]
+                draw.text(((W - tw) // 2, y + 16), f"— {speaker}", font=font_m, fill=(190, 0, 0))
+
+            img.save(str(path), "PNG")
+        except Exception as e:
+            logger.warning("News overlay render failed (%s) — using placeholder", e)
+            return self._placeholder(filename, beat.get("segment", ""))
+        return path
+
+    def _render_infographic(self, beat: dict, filename: str) -> Path:
+        """Dark infographic slide with white text and pink accent bars."""
+        path = self.output_dir / filename
+        try:
+            from PIL import Image, ImageDraw
+            import textwrap
+
+            W, H = 1920, 1080
+            img = Image.new("RGB", (W, H), color=(6, 6, 8))
+            draw = ImageDraw.Draw(img)
+
+            font_big, font_mid, font_s = self._load_fonts(68, 36, 24)
+
+            # Pink accent bars (Fern's infographic palette)
+            PINK = (220, 75, 135)
+            draw.rectangle([80, 78, W - 80, 84], fill=PINK)
+            draw.rectangle([80, H - 84, W - 80, H - 78], fill=PINK)
+
+            display = beat.get("display_text", beat.get("segment", ""))[:400]
+
+            # Split on " · " to detect labeled list (e.g. timeline entries)
+            if " · " in display:
+                header, *items = display.split(" · ")
+                header = header.strip()
+                bbox = draw.textbbox((0, 0), header, font=font_mid)
+                tw = bbox[2] - bbox[0]
+                y = H // 2 - (len(items) * 52 + 80) // 2
+                draw.text(((W - tw) // 2, y), header, font=font_mid, fill=PINK)
+                y += 70
+                for item in items[:6]:
+                    item = item.strip()
+                    bbox = draw.textbbox((0, 0), item, font=font_big)
+                    tw = bbox[2] - bbox[0]
+                    draw.text(((W - tw) // 2, y), item, font=font_big, fill=(245, 245, 245))
+                    y += 78
+            else:
+                lines = textwrap.wrap(display, width=40)
+                y = H // 2 - (len(lines) * 78) // 2
+                for i, line in enumerate(lines[:5]):
+                    f = font_big if i == 0 else font_mid
+                    sz = 78 if i == 0 else 54
+                    fill = (255, 255, 255) if i == 0 else (200, 200, 200)
+                    bbox = draw.textbbox((0, 0), line, font=f)
+                    tw = bbox[2] - bbox[0]
+                    draw.text(((W - tw) // 2, y), line, font=f, fill=fill)
+                    y += sz
+
+            img.save(str(path), "PNG")
+        except Exception as e:
+            logger.warning("Infographic render failed (%s) — using placeholder", e)
+            return self._placeholder(filename, beat.get("segment", ""))
+        return path
+
     # ── Voiceover ──────────────────────────────────────────────────────────
 
     def generate_voiceover(self, script: str, voice: str = "onyx") -> Path:
@@ -202,7 +322,7 @@ class VideoProducer:
         clip_duration: int = 8,
         on_progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> List[Path]:
-        """Generate short video clips using Google Veo 3, one per beat."""
+        """Generate clips per beat: Veo 3 for animation, Pillow cards for overlays/infographics."""
         from google import genai
 
         api_key = os.getenv("GEMINI_API_KEY")
@@ -219,11 +339,23 @@ class VideoProducer:
         )
 
         for i, beat in enumerate(beats):
+            scene_type = beat.get("scene_type", "animation")
+            label = f"Clip {i + 1}/{len(beats)} [{scene_type}]"
             if on_progress:
-                on_progress(i, len(beats), f"Clip {i + 1}/{len(beats)} via Veo 3...")
-            raw_prompt = beat.get("image_prompt", "figure stands in dark empty corridor")
-            prompt = (FERN_PREFIX + raw_prompt)[:2000]
-            path = self._generate_veo_clip(client, prompt, clip_duration, f"clip_{i:03d}.mp4")
+                on_progress(i, len(beats), label)
+
+            base = f"clip_{i:03d}"
+
+            if scene_type == "news_overlay":
+                path = self._render_news_overlay(beat, f"{base}.png")
+            elif scene_type == "infographic":
+                path = self._render_infographic(beat, f"{base}.png")
+            else:
+                # animation — Veo 3
+                raw_prompt = beat.get("image_prompt", "figure stands in dark empty corridor")
+                prompt = (FERN_PREFIX + raw_prompt)[:2000]
+                path = self._generate_veo_clip(client, prompt, clip_duration, f"{base}.mp4")
+
             clip_paths.append(path)
 
         return clip_paths
