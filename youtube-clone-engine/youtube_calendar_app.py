@@ -135,19 +135,33 @@ def _produce_video(engine, producer, concept, style_dna, channel_url,
         result["thumbnail_concepts"] = thumb_concepts
         st.write("✅ Thumbnail concepts ready")
 
-        img_ph = st.empty()
-        img_ph.write(f"**DALL-E 3** — generating {len(beats)} images...")
-
-        def on_img(i, total, msg):
-            img_ph.write(f"**DALL-E 3** — {msg} (~{(total - i) * 13 // 60} min left)")
-
         output_dir = f".tmp/video/video_{video_index:02d}"
         producer.output_dir = __import__("pathlib").Path(output_dir)
         producer.output_dir.mkdir(parents=True, exist_ok=True)
 
-        image_paths = producer.generate_images(beats, on_progress=on_img)
-        result["image_paths"] = [str(p) for p in image_paths]
-        img_ph.write(f"✅ {len(image_paths)} images generated")
+        use_veo = bool(os.getenv("GEMINI_API_KEY"))
+
+        if use_veo:
+            veo_ph = st.empty()
+            veo_ph.write(f"**[Veo 3]** Generating {len(beats)} clips (animation + cards)...")
+
+            def on_veo(i, total, msg):
+                remaining_min = max(1, (total - i) * 2)
+                veo_ph.write(f"**[Veo 3]** {msg} (~{remaining_min} min left)")
+
+            clip_paths = producer.generate_video_clips_veo(beats, on_progress=on_veo)
+            result["clip_paths"] = [str(p) for p in clip_paths]
+            veo_ph.write(f"✅ {len(clip_paths)} clips ready")
+        else:
+            img_ph = st.empty()
+            img_ph.write(f"**DALL-E 3** — generating {len(beats)} images...")
+
+            def on_img(i, total, msg):
+                img_ph.write(f"**DALL-E 3** — {msg} (~{(total - i) * 13 // 60} min left)")
+
+            image_paths = producer.generate_images(beats, on_progress=on_img)
+            result["image_paths"] = [str(p) for p in image_paths]
+            img_ph.write(f"✅ {len(image_paths)} images generated")
 
         st.write("**Thumbnail (HD)...**")
         thumb_path = producer.generate_thumbnail_image(thumb_concepts[0])
@@ -165,11 +179,18 @@ def _produce_video(engine, producer, concept, style_dna, channel_url,
         def on_asm(msg):
             asm_ph.write(f"**Assembling** — {msg}")
 
-        video_path = producer.assemble_video(
-            image_paths=[Path(p) for p in result["image_paths"]],
-            audio_path=Path(result["audio_path"]),
-            on_progress=on_asm,
-        )
+        if use_veo:
+            video_path = producer.assemble_from_clips(
+                clip_paths=[Path(p) for p in result["clip_paths"]],
+                audio_path=Path(result["audio_path"]),
+                on_progress=on_asm,
+            )
+        else:
+            video_path = producer.assemble_video(
+                image_paths=[Path(p) for p in result["image_paths"]],
+                audio_path=Path(result["audio_path"]),
+                on_progress=on_asm,
+            )
         result["video_path"] = str(video_path)
         asm_ph.write("✅ MP4 assembled")
 
