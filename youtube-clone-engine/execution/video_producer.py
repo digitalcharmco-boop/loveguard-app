@@ -14,11 +14,16 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# Resolve paths relative to this file — works regardless of where the terminal
+# or Streamlit is run from (important on Windows).
+_HERE = Path(__file__).resolve().parent
+_DEFAULT_OUTPUT = _HERE.parent / ".tmp" / "video"
+
 
 class VideoProducer:
-    def __init__(self, api_key: str = None, output_dir: str = ".tmp/video"):
+    def __init__(self, api_key: str = None, output_dir: str = None):
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir) if output_dir else _DEFAULT_OUTPUT
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Image generation ───────────────────────────────────────────────────
