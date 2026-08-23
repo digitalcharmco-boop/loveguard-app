@@ -135,9 +135,9 @@ def _produce_video(engine, producer, concept, style_dna, channel_url,
         result["thumbnail_concepts"] = thumb_concepts
         st.write("✅ Thumbnail concepts ready")
 
-        output_dir = f".tmp/video/video_{video_index:02d}"
-        producer.output_dir = __import__("pathlib").Path(output_dir)
-        producer.output_dir.mkdir(parents=True, exist_ok=True)
+        from execution.video_producer import _ensure_dir, _HERE as _VP_HERE
+        output_dir = _VP_HERE.parent / "output" / "video" / f"video_{video_index:02d}"
+        producer.output_dir = _ensure_dir(output_dir)
 
         use_veo = bool(os.getenv("GEMINI_API_KEY"))
 
