@@ -246,7 +246,7 @@ class VideoProducer:
 
             font_big, font_mid, font_s = self._load_fonts(68, 36, 24)
 
-            # Pink accent bars (Fern's infographic palette)
+            # Pink accent bars (infographic accent color)
             PINK = (220, 75, 135)
             draw.rectangle([80, 78, W - 80, 84], fill=PINK)
             draw.rectangle([80, H - 84, W - 80, H - 78], fill=PINK)
@@ -350,12 +350,6 @@ class VideoProducer:
         )
         clip_paths = []
 
-        FERN_PREFIX = (
-            "dark cinematic 3D animation, featureless mannequin figure with no face no eyes no mouth, "
-            "smooth blank head, faceless humanoid, matte dark surface, dramatic shadow lighting, "
-            "near-black color palette, ominous atmosphere, 3D rendered scene, "
-        )
-
         for i, beat in enumerate(beats):
             scene_type = beat.get("scene_type", "animation")
             label = f"Clip {i + 1}/{len(beats)} [{scene_type}]"
@@ -369,9 +363,10 @@ class VideoProducer:
             elif scene_type == "infographic":
                 path = self._render_infographic(beat, f"{base}.png")
             else:
-                # animation — Veo 3
-                raw_prompt = beat.get("image_prompt", "figure stands in dark empty corridor")
-                prompt = (FERN_PREFIX + raw_prompt)[:2000]
+                # animation — Veo 3: use the image_prompt exactly as generated
+                # (it already reflects the cloned channel's visual style)
+                raw_prompt = beat.get("image_prompt", "cinematic scene, dramatic lighting, moody atmosphere")
+                prompt = raw_prompt[:2000]
                 path = self._generate_veo_clip(client, prompt, clip_duration, f"{base}.mp4")
 
             clip_paths.append(path)

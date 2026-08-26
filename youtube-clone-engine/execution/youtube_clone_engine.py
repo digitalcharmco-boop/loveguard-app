@@ -227,22 +227,27 @@ Output only JSON.""",
     # ── State 7: Image Prompt Generation ────────────────────────────────
 
     def generate_image_prompts(self, script: str, visual_profile: Dict) -> List[Dict]:
+        # Derive the channel's animation style description from the visual profile
+        anim_style = visual_profile.get("animation_style") or visual_profile.get("visual_style") or ""
+        color_palette = visual_profile.get("color_palette") or visual_profile.get("palette") or "dark, cinematic"
+        lighting_style = visual_profile.get("lighting") or "dramatic chiaroscuro"
+        figure_style = visual_profile.get("figure_style") or visual_profile.get("character_style") or "stylized figures, no realistic faces"
+
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "You are a visual director for the YouTube channel Fern — a true crime 3D animation channel. "
-                    "Fern deliberately mixes THREE visual formats to create variety and keep viewers engaged:\n\n"
-                    "1. ANIMATION (≈60%): Dark 3D animated scenes. Featureless mannequin figures — no face, no eyes, "
-                    "no mouth, smooth blank heads. Cinematic chiaroscuro lighting, near-black palette, matte surfaces.\n\n"
-                    "2. NEWS_OVERLAY (≈25%): Dark broadcast-style graphic cards. Used when the script quotes someone, "
-                    "references news coverage, or makes a key revelatory statement. Shows the quote text on a dark card "
-                    "with news-ticker styling and red accent bars.\n\n"
-                    "3. INFOGRAPHIC (≈15%): Dark diagram/data slides. Used when the script mentions statistics, "
-                    "timelines, or relationships between people. White text and icons on near-black background with "
-                    "pink accent bars — like Fern's relationship maps and case timeline slides.\n\n"
-                    "Segment the script into beats of 3-5 seconds and assign the most fitting scene_type. "
-                    "Output pure JSON only."
+                    "You are a visual director cloning a YouTube channel's signature aesthetic. "
+                    "Your job is to segment scripts into visual beats and assign scene types that match "
+                    "HOW THIS SPECIFIC CHANNEL actually looks — derived from the channel visual profile provided.\n\n"
+                    "THREE scene types are available for variety:\n\n"
+                    "1. ANIMATION (≈60%): Motion/cinematic scenes rendered in the channel's animation style. "
+                    "Use the visual profile to determine the exact aesthetic (3D, illustrated, live-action style, etc.).\n\n"
+                    "2. NEWS_OVERLAY (≈25%): Graphic text cards. Used when the script quotes someone, "
+                    "references a source, or makes a key statement. Dark card with the quote as large on-screen text.\n\n"
+                    "3. INFOGRAPHIC (≈15%): Data/diagram slides. Used when the script mentions stats, "
+                    "timelines, or relationships. Minimal dark slide with labeled text.\n\n"
+                    "Segment the script into beats of 3-5 seconds. Output pure JSON only."
                 ),
             },
             {
@@ -252,30 +257,36 @@ Output only JSON.""",
 SCRIPT:
 {script}
 
-CHANNEL VISUAL PROFILE:
+CHANNEL VISUAL PROFILE (use this to define the animation style — do NOT default to any other channel's look):
 {json.dumps(visual_profile, indent=2)}
+
+KEY STYLE SIGNALS EXTRACTED:
+- Animation style: {anim_style}
+- Color palette: {color_palette}
+- Lighting: {lighting_style}
+- Figure/character style: {figure_style}
 
 Output a JSON array. Each element must have ALL of these keys:
 {{
   "beat_number": 1,
   "segment": "exact script text for this beat",
   "scene_type": "animation" | "news_overlay" | "infographic",
-  "image_prompt": "ANIMATION only: complete mannequin scene description starting with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — empty string for the other types",
+  "image_prompt": "ANIMATION only: complete scene description matching THIS channel's visual style from the profile above — no generic defaults, no other channels' styles. Empty string for news_overlay/infographic.",
   "quote_text": "NEWS_OVERLAY only: the key quote or statement to display as on-screen text, max 30 words — empty string for other types",
-  "speaker_label": "NEWS_OVERLAY only: attribution label e.g. 'CNN Reporter, 2021' or 'Detective Morrison' — empty string for other types",
-  "display_text": "INFOGRAPHIC only: key fact, stat, or short list to render e.g. 'TIMELINE: Aug 27 — Last seen · Sep 11 — Reported missing · Sep 19 — Found' — empty string for other types",
+  "speaker_label": "NEWS_OVERLAY only: attribution label e.g. 'Detective Morrison, 2019' — empty string for other types",
+  "display_text": "INFOGRAPHIC only: key fact, stat, or short list e.g. 'TIMELINE: Aug 27 — Last seen · Sep 11 — Reported missing' — empty string for other types",
   "camera_angle": "specific angle (or 'flat card' for overlay/infographic)",
   "lighting": "type and quality of light",
   "mood": "emotional atmosphere",
   "action": "what is happening in the scene",
-  "visual_style": "dark 3D animation" | "dark news overlay" | "dark infographic"
+  "visual_style": "short label matching the channel's style"
 }}
 
 Rules:
-- ANIMATION: image_prompt MUST start with 'dark cinematic 3D animation, featureless mannequin figure with no face,' — mannequins only, no realistic faces ever
+- ANIMATION: image_prompt must fully describe the scene in THIS channel's aesthetic — derive it from the visual profile, not from any default style
 - NEWS_OVERLAY: quote_text is 10-30 words; speaker_label is a plausible attribution
 - INFOGRAPHIC: display_text is a punchy fact, stat, or labeled list
-- Mix scene types naturally so animation dominates but overlays/infographics punctuate key moments
+- Mix scene types so animation dominates (~60%) but overlays/infographics punctuate key moments
 
 Output only the JSON array.""",
             },
