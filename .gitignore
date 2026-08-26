@@ -66,3 +66,7 @@ logs/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude Code local settings (session-specific, not for version control)
+.claude/settings.local.json
+youtube-clone-engine.zip
